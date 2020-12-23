@@ -1,11 +1,11 @@
-require 'kitchen/verifier/base'
+require "kitchen/verifier/base"
 
 module Kitchen
   module Verifier
     class Goss < Kitchen::Verifier::Base
-      require 'mixlib/shellout'
-      require 'kitchen/util'
-      require 'pathname'
+      require "mixlib/shellout"
+      require "kitchen/util"
+      require "pathname"
 
       kitchen_verifier_api_version 1
       plugin_version Kitchen::VERSION
@@ -14,20 +14,20 @@ module Kitchen
       default_config :sleep, 0
       default_config :use_sudo, false
       default_config :env_vars, {}
-      default_config :goss_version, 'v0.3.6'
-      default_config :validate_output, 'documentation'
+      default_config :goss_version, "v0.3.16"
+      default_config :validate_output, "documentation"
       default_config :custom_install_command, nil
-      default_config :goss_link, 'https://github.com/aelsabbahy/goss/releases/download/$VERSION/goss-${DISTRO}-${ARCH}'
-      default_config :goss_download_path, '/tmp/goss-${VERSION}-${DISTRO}-${ARCH}'
+      default_config :goss_link, "https://github.com/aelsabbahy/goss/releases/download/${GOSS_VERSION}/goss-${DISTRO}-${ARCH}"
+      default_config :goss_download_path, "/tmp/goss-${GOSS_VERSION}-${DISTRO}-${ARCH}"
       default_config :goss_var_path, nil
 
       def install_command
         # If cutom install
-        info('Installing with custom install command') if config[:custom_install_command]
+        info("Installing with custom install command") if config[:custom_install_command]
         return config[:custom_install_command] if config[:custom_install_command]
 
-        info('Checking/Installing GOSS')
-        prefix_command(wrap_shell_code(Util.outdent!(<<-CMD)))
+        info("Checking/Installing GOSS")
+        command = <<-CMD
           ## Get helper
           #{Kitchen::Util.shell_helpers}
 
@@ -39,23 +39,24 @@ module Kitchen
           if [ -f "/${goss_download_path}" ]; then
             echo "GOSS is installed in ${goss_download_path}"
           else
-            echo "Checking compatibility"
-            distro="$(uname)"
-            if [ "x${distro}" != "xLinux" ]; then
-              echo "Your distro '${distro}' is not supported."
+            echo "Checking compatibility..."
+            if [ "${DISTRO}" != "linux" ]; then
+              echo "Your distro '${DISTRO}' is not supported."
               exit 1
             fi
+
             echo "Trying to download GOSS to ${goss_download_path}"
             do_download ${download_url} ${goss_download_path}
             chmod +x ${goss_download_path}
           fi
         CMD
+        prefix_command(wrap_shell_code(Util.outdent!(command)))
       end
 
       # (see Base#init_command)
       def init_command
         return if local_suite_files.empty?
-        debug('Remove root_path on remote server.')
+        debug("Remove root_path on remote server.")
         <<-CMD
           suite_dir="#{config[:root_path]}"
           if [ "${suite_dir}" = "x" ]; then
@@ -75,19 +76,19 @@ module Kitchen
       # @raise [ActionFailed] if the action could not be completed
       def call(state)
         create_sandbox
-        sandbox_dirs = Dir.glob(File.join(sandbox_path, '*'))
+        sandbox_dirs = Dir.glob(File.join(sandbox_path, "*"))
 
         instance.transport.connection(state) do |conn|
           conn.execute(install_command)
           conn.execute(init_command)
           info("Transferring files to #{instance.to_str}")
           conn.upload(sandbox_dirs, config[:root_path])
-          debug('Transfer complete')
+          debug("Transfer complete")
           conn.execute(prepare_command)
           conn.execute(run_command)
         end
       rescue Kitchen::Transport::TransportFailed => ex
-        if ex.message .include? '<TEST EXECUTION FAILED>'
+        if ex.message .include? "<TEST EXECUTION FAILED>"
           raise ActionFailed, "Action #verify failed for #{instance.to_str}."
         else
           raise ActionFailed, ex.message
@@ -100,13 +101,14 @@ module Kitchen
       def run_command
         return if local_suite_files.empty?
 
-        debug('Running tests')
-        prefix_command(wrap_shell_code(Util.outdent!(<<-CMD)))
+        debug("Running tests")
+        command = <<-CMD
           set +e
           #{goss_filename_flags}
           command_validate_opts="validate --format #{config[:validate_output]}"
           #{run_test_command}
         CMD
+        prefix_command(wrap_shell_code(Util.outdent!(command)))
       end
 
       # Copies all test suite files into the suites directory in the sandbox.
@@ -116,7 +118,7 @@ module Kitchen
         base = File.join(config[:test_base_path], config[:suite_name])
 
         local_suite_files.each do |src|
-          dest = File.join(sandbox_suites_dir, src.sub("#{base}/", ''))
+          dest = File.join(sandbox_suites_dir, src.sub("#{base}/", ""))
           FileUtils.mkdir_p(File.dirname(dest))
           FileUtils.cp(src, dest, preserve: true)
         end
@@ -130,7 +132,7 @@ module Kitchen
       # @api private
       def local_suite_files
         base = File.join(config[:test_base_path], config[:suite_name])
-        glob = File.join(base, 'goss/**/*')
+        glob = File.join(base, "goss/**/*")
         # testfiles = Dir.glob(glob).reject { |f| File.directory?(f) }
         Dir.glob(glob).reject { |f| File.directory?(f) }
       end
@@ -144,18 +146,18 @@ module Kitchen
       # @return [String] path to suites directory under sandbox path
       # @api private
       def sandbox_suites_dir
-        File.join(sandbox_path, 'suites')
+        File.join(sandbox_path, "suites")
       end
 
       def env_vars
         return nil if config[:env_vars].none?
-        config[:env_vars].map { |k, v| "#{k}=#{v}" }.join(' ')
+        config[:env_vars].map { |k, v| "#{k}=#{v}" }.join(" ")
       end
 
       def remote_var_file
         base_path = File.join(config[:test_base_path], config[:suite_name])
-        remote_base_path = File.join(config[:root_path], 'suites')
-        result = ''
+        remote_base_path = File.join(config[:root_path], "suites")
+        result = ""
         local_suite_files.each do |src|
           if File.basename(src) == config[:goss_var_path]
             result = src.sub(base_path, remote_base_path)
@@ -168,22 +170,21 @@ module Kitchen
       # @api private
       def run_test_command
         command = config[:goss_download_path]
-        command = "sudo -E #{command}" if !config[:use_sudo] == true
+        command = "sudo -E #{command}" if config[:use_sudo] == true
         command = "#{env_vars} #{command}" if config[:env_vars].any?
         command = "#{command} --vars #{remote_var_file}" if config[:goss_var_path]
-        puts command
 
         <<-CMD
           if [ ! -x "#{config[:goss_download_path]}" ]; then
-              echo "Something failed cant execute '${command}'"
-              exit 1
+            echo "Something failed cant execute '${command}'"
+            exit 1
           fi
 
           test_failed=0
           for VARIABLE in #{get_test_name}
           do
-            #{command} -g ${VARIABLE} ${command_validate_opts}
-            if [ "$?" -ne 0 ]; then
+            if ! #{command} -g ${VARIABLE} ${command_validate_opts} ;
+            then
               test_failed=1
             fi
           done
@@ -199,49 +200,41 @@ module Kitchen
 
       def goss_filename_flags
         <<-CMD
-           ## Set the flags for GOSS command path
-           VERSION="#{config[:goss_version]}"
-           DISTRO="$(uname)"
-           ## Need improvements
-           if [ "$(uname -m)" = "x86_64" ]; then
-             ARCH="amd64"
-           else
-             ARCH="386"
-           fi
+          ## Set the flags for GOSS command path          
+          GOSS_VERSION="#{config[:goss_version]}"
+          DISTRO="$(uname | tr '[:upper:]' '[:lower:]')"
 
-            if [ -f /etc/os-release ]; then
+          ## Need improvements
+          if [ "$(uname -m)" = "x86_64" ]; then
+            ARCH="amd64"
+          else
+            ARCH="386"
+          fi
 
-              if [ "$(grep -i 'ubuntu' /etc/os-release)" != ""  ]; then
-                OS="ubuntu"
-              fi
-              if [ "$(grep -i 'centos' /etc/os-release)" != "" ]; then
-                OS="centos"
-              fi
-              if [ "$(grep -i '7' /etc/os-release)" != "" ]; then
-                VER='7'
-              fi
-              if [ "$(grep -i '16.04' /etc/os-release)" != "" ]; then
-                VER='16.04'
-              fi
-            else
-              OS="centos"
-              VER="6"
-            fi
+          ID="centos"
+          VERSION_ID="6"
+          if [ -f /etc/os-release ]; then
+            . /etc/os-release
+          fi
 
-            OS_VERSION=${OS}${VER}
-            echo $OS_VERSION
-          CMD
+          OS_VERSION="${ID}-${VERSION_ID}"
+          echo "Detected OS Version: ${OS_VERSION} (${DISTRO})"
+        CMD
       end
 
       def get_test_name
         base_path = File.join(config[:test_base_path], config[:suite_name])
-        remote_base_path = File.join(config[:root_path], 'suites')
-        all_tests = ''
+        remote_base_path = File.join(config[:root_path], "suites")
+        all_tests = ""
+
         local_suite_files.each do |test_file|
-          if File.basename(test_file) != config[:goss_var_path] && File.basename(test_file).end_with?('.yml')
-            all_tests += ' ' + test_file.sub(base_path, remote_base_path)
+          if File.basename(test_file) != config[:goss_var_path]
+            if File.basename(test_file).end_with?(".yml") || File.basename(test_file).end_with?(".yaml")
+              all_tests += " " + test_file.sub(base_path, remote_base_path)
             end
+          end
         end
+
         all_tests
       end
 
@@ -250,7 +243,7 @@ module Kitchen
       # @api private
       def sleep_if_set
         config[:sleep].to_i.times do
-          print '.'
+          print "."
           sleep 1
         end
       end
