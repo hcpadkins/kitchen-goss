@@ -49,6 +49,7 @@ default_config :custom_install_command, nil
 default_config :goss_link, "https://github.com/aelsabbahy/goss/releases/download/$VERSION/goss-${DISTRO}-${ARCH}"
 default_config :goss_download_path, "/tmp/goss-${VERSION}-${DISTRO}-${ARCH}"
 default_config :goss_var_path, nil
+default_config :concurrency, 50
 ```
 
 ## Test structure
