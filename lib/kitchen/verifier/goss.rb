@@ -20,6 +20,7 @@ module Kitchen
       default_config :goss_link, "https://github.com/aelsabbahy/goss/releases/download/${GOSS_VERSION}/goss-${DISTRO}-${ARCH}"
       default_config :goss_download_path, "/tmp/goss-${GOSS_VERSION}-${DISTRO}-${ARCH}"
       default_config :goss_var_path, nil
+      default_config :concurrency, 50
 
       def install_command
         # If cutom install
@@ -105,7 +106,7 @@ module Kitchen
         command = <<-CMD
           set +e
           #{goss_filename_flags}
-          command_validate_opts="validate --format #{config[:validate_output]}"
+          command_validate_opts="validate --format #{config[:validate_output]} --max-concurrent #{config[:concurrency]}"
           #{run_test_command}
         CMD
         prefix_command(wrap_shell_code(Util.outdent!(command)))
